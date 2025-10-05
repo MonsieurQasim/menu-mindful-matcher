@@ -1,44 +1,71 @@
-import { useState } from "react";
-import { MapPin, Filter } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MapPin, Filter, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RestaurantCard from "@/components/RestaurantCard";
-import DietaryFilters from "@/components/DietaryFilters";
+import TagFilter from "@/components/TagFilter";
+import { supabase } from "@/integrations/supabase/client";
 
-// Mock data for demonstration
-const mockRestaurants = [
-  {
-    id: "1",
-    name: "Skiffer Turku",
-    image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=300&fit=crop",
-    openTime: "Open",
-    closeTime: "Closes 20:00",
-    dietary: ["Vegetarian", "Halal", "Vegan"],
-    distance: "300m",
-  },
-  {
-    id: "2",
-    name: "Restaurant Gustavo",
-    image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=300&fit=crop",
-    openTime: "Open",
-    closeTime: "Closes 21:00",
-    dietary: ["Vegetarian", "Vegan", "Halal"],
-    distance: "450m",
-  },
-  {
-    id: "3",
-    name: "Skiffer Turku",
-    image: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=400&h=300&fit=crop",
-    openTime: "Open",
-    closeTime: "Closes 19:00",
-    dietary: ["Vegetarian", "Halal", "Vegan"],
-    distance: "1.2km",
-  },
-];
+interface Restaurant {
+  id: string;
+  name: string;
+  description: string | null;
+  address: string;
+  city: string;
+  image_url: string | null;
+  verified: boolean;
+  menu_items: Array<{
+    id: string;
+    name: string;
+    menu_item_tags: Array<{ tag_id: string }>;
+  }>;
+}
 
 const Discover = () => {
-  const [selectedFilters, setSelectedFilters] = useState<string[]>(["Halal", "Vegan", "Vegetarian"]);
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRestaurants();
+  }, [selectedFilters]);
+
+  const fetchRestaurants = async () => {
+    setLoading(true);
+    
+    let query = supabase
+      .from("restaurants")
+      .select(`
+        *,
+        menu_items (
+          id,
+          name,
+          menu_item_tags (tag_id)
+        )
+      `);
+
+    const { data, error } = await query;
+
+    if (data && !error) {
+      let filtered = data;
+
+      if (selectedFilters.length > 0) {
+        filtered = data.filter((restaurant) => {
+          const restaurantTagIds = new Set(
+            restaurant.menu_items.flatMap((item: any) =>
+              item.menu_item_tags.map((mt: any) => mt.tag_id)
+            )
+          );
+          return selectedFilters.every((filterId) => restaurantTagIds.has(filterId));
+        });
+      }
+
+      setRestaurants(filtered as Restaurant[]);
+    }
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/10">
@@ -52,30 +79,59 @@ const Discover = () => {
         </div>
       </header>
 
-      {/* Dietary Filters */}
+      {/* Tag Filters */}
       {showFilters && (
         <div className="bg-card border-b border-border p-4">
-          <DietaryFilters selected={selectedFilters} onChange={setSelectedFilters} />
+          <TagFilter selected={selectedFilters} onChange={setSelectedFilters} />
         </div>
       )}
 
-      {/* Quick Filter Badges */}
-      <div className="bg-card/50 backdrop-blur-sm sticky top-14 z-10 p-4 flex gap-2 overflow-x-auto">
-        <span className="text-sm font-medium text-muted-foreground whitespace-nowrap flex items-center">
-          Filters:
-        </span>
-        {selectedFilters.map((filter) => (
-          <Badge key={filter} variant="secondary" className="whitespace-nowrap">
-            {filter}
-          </Badge>
-        ))}
-      </div>
+      {/* Results */}
+      <div className="container mx-auto px-4 py-4">
+        <Tabs defaultValue="list" className="w-full">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-4">
+            <TabsTrigger value="list">
+              <List className="h-4 w-4 mr-2" />
+              List View
+            </TabsTrigger>
+            <TabsTrigger value="map">
+              <MapPin className="h-4 w-4 mr-2" />
+              Map View
+            </TabsTrigger>
+          </TabsList>
 
-      {/* Restaurant List */}
-      <div className="container mx-auto px-4 py-4 space-y-4">
-        {mockRestaurants.map((restaurant) => (
-          <RestaurantCard key={restaurant.id} {...restaurant} />
-        ))}
+          <TabsContent value="list" className="space-y-4 pb-64">
+            {loading ? (
+              <p className="text-center text-muted-foreground">Loading restaurants...</p>
+            ) : restaurants.length === 0 ? (
+              <Card className="p-12 text-center">
+                <p className="text-muted-foreground">No restaurants match your filters</p>
+              </Card>
+            ) : (
+              restaurants.map((restaurant) => (
+                <RestaurantCard
+                  key={restaurant.id}
+                  name={restaurant.name}
+                  image={restaurant.image_url || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=300&fit=crop"}
+                  openTime="Open"
+                  closeTime="Closes 20:00"
+                  dietary={[]}
+                  distance="N/A"
+                />
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="map" className="pb-64">
+            <div className="h-[500px] bg-muted rounded-lg flex items-center justify-center">
+              <div className="text-center">
+                <MapPin className="h-12 w-12 mx-auto mb-4 text-primary" />
+                <p className="font-medium">Google Maps Integration</p>
+                <p className="text-sm text-muted-foreground">Coming soon</p>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Map Preview */}

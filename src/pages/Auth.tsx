@@ -62,7 +62,7 @@ const Auth = () => {
 
       if (error) throw error;
 
-      navigate("/");
+      navigate(userType === "diner" ? "/discover" : "/dashboard");
     } catch (error: any) {
       toast({
         variant: "destructive",
