@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { MapPin, Filter, List } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MapPin, Filter, List, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,6 +8,7 @@ import RestaurantCard from "@/components/RestaurantCard";
 import TagFilter from "@/components/TagFilter";
 import MapView from "@/components/MapView";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface Restaurant {
   id: string;
@@ -24,10 +26,21 @@ interface Restaurant {
 }
 
 const Discover = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
+    navigate("/auth");
+  };
 
   useEffect(() => {
     fetchRestaurants();
@@ -74,9 +87,14 @@ const Discover = () => {
       <header className="bg-card border-b border-border sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-primary">Diety</h1>
-          <Button variant="ghost" size="icon" onClick={() => setShowFilters(!showFilters)}>
-            <Filter className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => setShowFilters(!showFilters)}>
+              <Filter className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
