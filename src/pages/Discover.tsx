@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RestaurantCard from "@/components/RestaurantCard";
 import TagFilter from "@/components/TagFilter";
+import MapView from "@/components/MapView";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Restaurant {
@@ -100,7 +101,7 @@ const Discover = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="list" className="space-y-4 pb-64">
+          <TabsContent value="list" className="space-y-4">
             {loading ? (
               <p className="text-center text-muted-foreground">Loading restaurants...</p>
             ) : restaurants.length === 0 ? (
@@ -122,33 +123,10 @@ const Discover = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="map" className="pb-64">
-            <div className="h-[500px] bg-muted rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="h-12 w-12 mx-auto mb-4 text-primary" />
-                <p className="font-medium">Google Maps Integration</p>
-                <p className="text-sm text-muted-foreground">Coming soon</p>
-              </div>
-            </div>
+          <TabsContent value="map">
+            <MapView />
           </TabsContent>
         </Tabs>
-      </div>
-
-      {/* Map Preview */}
-      <div className="fixed bottom-0 left-0 right-0 h-64 bg-muted rounded-t-3xl overflow-hidden shadow-lg">
-        <div className="w-full h-full relative">
-          <img
-            src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&h=400&fit=crop"
-            alt="Map"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="bg-card/90 backdrop-blur-sm px-6 py-3 rounded-full shadow-lg flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-primary" />
-              <span className="font-medium">Map view coming soon</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

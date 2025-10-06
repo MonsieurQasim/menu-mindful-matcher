@@ -55,12 +55,30 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
+
+      // Check user's actual role from database
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id)
+        .single();
+
+      if (roleError || !roleData) {
+        await supabase.auth.signOut();
+        throw new Error("Unable to verify account type");
+      }
+
+      // Verify the role matches what user selected
+      if (roleData.role !== userType) {
+        await supabase.auth.signOut();
+        throw new Error(`This account is registered as a ${roleData.role === "diner" ? "diner" : "restaurant"}. Please select the correct account type.`);
+      }
 
       navigate(userType === "diner" ? "/discover" : "/dashboard");
     } catch (error: any) {
