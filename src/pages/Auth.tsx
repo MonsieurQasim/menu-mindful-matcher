@@ -13,7 +13,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [userType, setUserType] = useState<"diner" | "business">("diner");
+  const [userType, setUserType] = useState<"diner" | "restaurant">("diner");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -114,9 +114,9 @@ const Auth = () => {
             </Button>
             <Button
               type="button"
-              variant={userType === "business" ? "default" : "outline"}
+              variant={userType === "restaurant" ? "default" : "outline"}
               className="flex-1"
-              onClick={() => setUserType("business")}
+              onClick={() => setUserType("restaurant")}
             >
               I'm a Restaurant
             </Button>
