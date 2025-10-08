@@ -63,6 +63,7 @@ const TagFilter = ({ selected, onChange }: TagFilterProps) => {
     const children = getChildTags(tag.id);
     const hasChildren = children.length > 0;
     const isExpanded = expandedCategories.includes(tag.id);
+    const otherTagId = `${tag.id}-other`;
 
     return (
       <div key={tag.id} className={isChild ? "ml-4" : ""}>
@@ -90,6 +91,15 @@ const TagFilter = ({ selected, onChange }: TagFilterProps) => {
         {hasChildren && isExpanded && (
           <div className="ml-2">
             {children.map((child) => renderTag(child, true))}
+            <div className="ml-4 flex items-center gap-2 mb-2">
+              <Badge
+                variant={selected.includes(otherTagId) ? "default" : "outline"}
+                className="cursor-pointer transition-all hover:scale-105"
+                onClick={() => toggleTag(otherTagId)}
+              >
+                Other
+              </Badge>
+            </div>
           </div>
         )}
       </div>
