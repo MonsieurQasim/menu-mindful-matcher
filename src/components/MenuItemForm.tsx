@@ -24,6 +24,8 @@ const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) 
   const [loading, setLoading] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -39,9 +41,50 @@ const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) 
     if (data) setTags(data);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    let imageUrl = null;
+
+    // Upload image if selected
+    if (imageFile) {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('menu-items')
+        .upload(filePath, imageFile);
+
+      if (uploadError) {
+        toast({
+          title: "Error",
+          description: "Failed to upload image: " + uploadError.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('menu-items')
+        .getPublicUrl(filePath);
+
+      imageUrl = publicUrl;
+    }
 
     const { data: menuItem, error: menuError } = await supabase
       .from("menu_items")
@@ -50,6 +93,7 @@ const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) 
         name: formData.name,
         description: formData.description,
         price: parseFloat(formData.price),
+        image_url: imageUrl,
       })
       .select()
       .single();
@@ -139,6 +183,27 @@ const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) 
           onChange={handleChange}
           placeholder="12.50"
         />
+      </div>
+
+      <div>
+        <Label htmlFor="image">Dish Image</Label>
+        <Input
+          id="image"
+          name="image"
+          type="file"
+          accept="image/*"
+          onChange={handleImageChange}
+          className="cursor-pointer"
+        />
+        {imagePreview && (
+          <div className="mt-2">
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="w-full h-48 object-cover rounded-lg border"
+            />
+          </div>
+        )}
       </div>
 
       <div>
