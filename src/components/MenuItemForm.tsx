@@ -14,18 +14,21 @@ interface Tag {
 }
 
 interface MenuItemFormProps {
+  menuId: string;
   restaurantId: string;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) => {
+const MenuItemForm = ({ menuId, restaurantId, onSuccess, onCancel }: MenuItemFormProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [certificatePreview, setCertificatePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -53,11 +56,36 @@ const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) 
     }
   };
 
+  const handleCertificateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCertificateFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCertificatePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     let imageUrl = null;
+    let certificateUrl = null;
+
+    // Check if halal tag is selected and certificate is required
+    const halalTag = tags.find(t => t.name.toLowerCase() === 'halal' && selectedTags.includes(t.id));
+    if (halalTag && !certificateFile) {
+      toast({
+        title: "Certificate Required",
+        description: "Halal certificate is required when adding halal dishes",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
 
     // Upload image if selected
     if (imageFile) {
@@ -86,14 +114,43 @@ const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) 
       imageUrl = publicUrl;
     }
 
+    // Upload certificate if provided
+    if (certificateFile) {
+      const fileExt = certificateFile.name.split('.').pop();
+      const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('certificates')
+        .upload(filePath, certificateFile);
+
+      if (uploadError) {
+        toast({
+          title: "Error",
+          description: "Failed to upload certificate: " + uploadError.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('certificates')
+        .getPublicUrl(filePath);
+
+      certificateUrl = publicUrl;
+    }
+
     const { data: menuItem, error: menuError } = await supabase
       .from("menu_items")
       .insert({
+        menu_id: menuId,
         restaurant_id: restaurantId,
         name: formData.name,
         description: formData.description,
         price: parseFloat(formData.price),
         image_url: imageUrl,
+        certificate_url: certificateUrl,
       })
       .select()
       .single();
@@ -145,6 +202,10 @@ const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) 
 
   const dietaryTags = tags.filter((t) => t.category === "dietary");
   const ingredientTags = tags.filter((t) => t.category === "ingredient");
+  const isHalalSelected = selectedTags.some(tagId => {
+    const tag = tags.find(t => t.id === tagId);
+    return tag?.name.toLowerCase() === 'halal';
+  });
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -205,6 +266,33 @@ const MenuItemForm = ({ restaurantId, onSuccess, onCancel }: MenuItemFormProps) 
           </div>
         )}
       </div>
+
+      {isHalalSelected && (
+        <div>
+          <Label htmlFor="certificate">Halal Certificate * (Required for Halal dishes)</Label>
+          <Input
+            id="certificate"
+            name="certificate"
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={handleCertificateChange}
+            className="cursor-pointer"
+          />
+          {certificatePreview && (
+            <div className="mt-2">
+              {certificateFile?.type.includes('pdf') ? (
+                <p className="text-sm text-muted-foreground">PDF certificate selected</p>
+              ) : (
+                <img
+                  src={certificatePreview}
+                  alt="Certificate preview"
+                  className="w-full h-48 object-contain rounded-lg border"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <Label>Dietary Tags *</Label>

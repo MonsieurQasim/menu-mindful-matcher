@@ -6,7 +6,9 @@ import { Card } from "@/components/ui/card";
 import { Plus, LogOut, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import RestaurantForm from "@/components/RestaurantForm";
-import MenuItemForm from "@/components/MenuItemForm";
+import MenuForm from "@/components/MenuForm";
+import MenuList from "@/components/MenuList";
+import MenuDetail from "@/components/MenuDetail";
 
 interface Restaurant {
   id: string;
@@ -24,6 +26,7 @@ const Dashboard = () => {
   const [selectedRestaurant, setSelectedRestaurant] = useState<string | null>(null);
   const [showRestaurantForm, setShowRestaurantForm] = useState(false);
   const [showMenuForm, setShowMenuForm] = useState(false);
+  const [selectedMenu, setSelectedMenu] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     checkUser();
@@ -73,12 +76,20 @@ const Dashboard = () => {
     });
   };
 
-  const handleMenuItemAdded = () => {
+  const handleMenuAdded = () => {
     setShowMenuForm(false);
     toast({
       title: "Success",
-      description: "Menu item added successfully!",
+      description: "Menu created successfully!",
     });
+  };
+
+  const handleSelectMenu = (menuId: string, menuName: string) => {
+    setSelectedMenu({ id: menuId, name: menuName });
+  };
+
+  const handleBackToMenus = () => {
+    setSelectedMenu(null);
   };
 
   return (
@@ -133,19 +144,39 @@ const Dashboard = () => {
                   }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Menu Item
+                  Add Menu
                 </Button>
               </div>
 
-              {showMenuForm && selectedRestaurant === restaurant.id && (
+              {showMenuForm && selectedRestaurant === restaurant.id ? (
                 <div className="mt-4 p-4 bg-muted rounded-lg">
-                  <h4 className="font-medium mb-3">Add Menu Item</h4>
-                  <MenuItemForm
+                  <h4 className="font-medium mb-3">Create Menu</h4>
+                  <MenuForm
                     restaurantId={restaurant.id}
-                    onSuccess={handleMenuItemAdded}
+                    onSuccess={handleMenuAdded}
                     onCancel={() => {
                       setShowMenuForm(false);
                       setSelectedRestaurant(null);
+                    }}
+                  />
+                </div>
+              ) : selectedMenu && selectedRestaurant === restaurant.id ? (
+                <div className="mt-4">
+                  <MenuDetail
+                    menuId={selectedMenu.id}
+                    menuName={selectedMenu.name}
+                    restaurantId={restaurant.id}
+                    onBack={handleBackToMenus}
+                  />
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <h4 className="font-medium mb-3">Menus</h4>
+                  <MenuList
+                    restaurantId={restaurant.id}
+                    onSelectMenu={(menuId, menuName) => {
+                      setSelectedRestaurant(restaurant.id);
+                      handleSelectMenu(menuId, menuName);
                     }}
                   />
                 </div>

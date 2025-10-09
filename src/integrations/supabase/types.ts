@@ -47,10 +47,12 @@ export type Database = {
       menu_items: {
         Row: {
           available: boolean | null
+          certificate_url: string | null
           created_at: string | null
           description: string | null
           id: string
           image_url: string | null
+          menu_id: string | null
           name: string
           price: number | null
           restaurant_id: string
@@ -58,10 +60,12 @@ export type Database = {
         }
         Insert: {
           available?: boolean | null
+          certificate_url?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
           image_url?: string | null
+          menu_id?: string | null
           name: string
           price?: number | null
           restaurant_id: string
@@ -69,10 +73,12 @@ export type Database = {
         }
         Update: {
           available?: boolean | null
+          certificate_url?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
           image_url?: string | null
+          menu_id?: string | null
           name?: string
           price?: number | null
           restaurant_id?: string
@@ -80,7 +86,46 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "menu_items_menu_id_fkey"
+            columns: ["menu_id"]
+            isOneToOne: false
+            referencedRelation: "menus"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "menu_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menus: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menus_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
