@@ -5,27 +5,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
+interface Menu {
+  id: string;
+  name: string;
+}
+
 interface MenuFormProps {
   restaurantId: string;
+  menu?: Menu;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-const MenuForm = ({ restaurantId, onSuccess, onCancel }: MenuFormProps) => {
+const MenuForm = ({ restaurantId, menu, onSuccess, onCancel }: MenuFormProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(menu?.name || "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase
-      .from("menus")
-      .insert({
-        restaurant_id: restaurantId,
-        name: name,
-      });
+    let error;
+    if (menu) {
+      ({ error } = await supabase
+        .from("menus")
+        .update({ name })
+        .eq("id", menu.id));
+    } else {
+      ({ error } = await supabase
+        .from("menus")
+        .insert({
+          restaurant_id: restaurantId,
+          name: name,
+        }));
+    }
 
     if (error) {
       toast({
@@ -39,7 +53,7 @@ const MenuForm = ({ restaurantId, onSuccess, onCancel }: MenuFormProps) => {
 
     toast({
       title: "Success",
-      description: "Menu created successfully",
+      description: menu ? "Menu updated successfully" : "Menu created successfully",
     });
 
     setLoading(false);
@@ -62,7 +76,7 @@ const MenuForm = ({ restaurantId, onSuccess, onCancel }: MenuFormProps) => {
 
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={loading}>
-          {loading ? "Creating..." : "Create Menu"}
+          {loading ? (menu ? "Updating..." : "Creating...") : (menu ? "Update Menu" : "Create Menu")}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel

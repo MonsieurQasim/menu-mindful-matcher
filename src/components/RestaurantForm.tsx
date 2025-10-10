@@ -6,23 +6,36 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
+interface Restaurant {
+  id: string;
+  name: string;
+  description: string | null;
+  address: string;
+  city: string;
+  postal_code: string;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+}
+
 interface RestaurantFormProps {
+  restaurant?: Restaurant;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-const RestaurantForm = ({ onSuccess, onCancel }: RestaurantFormProps) => {
+const RestaurantForm = ({ restaurant, onSuccess, onCancel }: RestaurantFormProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    address: "",
-    city: "",
-    postal_code: "",
-    phone: "",
-    email: "",
-    website: "",
+    name: restaurant?.name || "",
+    description: restaurant?.description || "",
+    address: restaurant?.address || "",
+    city: restaurant?.city || "",
+    postal_code: restaurant?.postal_code || "",
+    phone: restaurant?.phone || "",
+    email: restaurant?.email || "",
+    website: restaurant?.website || "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,10 +45,18 @@ const RestaurantForm = ({ onSuccess, onCancel }: RestaurantFormProps) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await supabase.from("restaurants").insert({
-      ...formData,
-      owner_id: user.id,
-    });
+    let error;
+    if (restaurant) {
+      ({ error } = await supabase
+        .from("restaurants")
+        .update(formData)
+        .eq("id", restaurant.id));
+    } else {
+      ({ error } = await supabase.from("restaurants").insert({
+        ...formData,
+        owner_id: user.id,
+      }));
+    }
 
     setLoading(false);
 
@@ -47,6 +68,11 @@ const RestaurantForm = ({ onSuccess, onCancel }: RestaurantFormProps) => {
       });
       return;
     }
+
+    toast({
+      title: "Success",
+      description: restaurant ? "Restaurant updated successfully" : "Restaurant added successfully",
+    });
 
     onSuccess();
   };
@@ -148,7 +174,7 @@ const RestaurantForm = ({ onSuccess, onCancel }: RestaurantFormProps) => {
 
       <div className="flex gap-2">
         <Button type="submit" disabled={loading}>
-          {loading ? "Adding..." : "Add Restaurant"}
+          {loading ? (restaurant ? "Updating..." : "Adding...") : (restaurant ? "Update Restaurant" : "Add Restaurant")}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel

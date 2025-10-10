@@ -13,36 +13,45 @@ interface Tag {
   category: string;
 }
 
+interface MenuItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image_url: string | null;
+  certificate_url: string | null;
+  dietary_halal: boolean;
+  dietary_vegetarian: boolean;
+  dietary_vegan: boolean;
+  dietary_gluten_free: boolean;
+}
+
 interface MenuItemFormProps {
   menuId: string;
   restaurantId: string;
+  menuItem?: MenuItem;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-const MenuItemForm = ({ menuId, restaurantId, onSuccess, onCancel }: MenuItemFormProps) => {
+const MenuItemForm = ({ menuId, restaurantId, menuItem, onSuccess, onCancel }: MenuItemFormProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingCertificate, setUploadingCertificate] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(menuItem?.image_url || null);
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
-  const [certificatePreview, setCertificatePreview] = useState<string | null>(null);
+  const [existingCertificate, setExistingCertificate] = useState<string | null>(menuItem?.certificate_url || null);
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    price: "",
+    name: menuItem?.name || "",
+    description: menuItem?.description || "",
+    price: menuItem?.price.toString() || "",
+    dietary_halal: menuItem?.dietary_halal || false,
+    dietary_vegetarian: menuItem?.dietary_vegetarian || false,
+    dietary_vegan: menuItem?.dietary_vegan || false,
+    dietary_gluten_free: menuItem?.dietary_gluten_free || false,
   });
-
-  useEffect(() => {
-    fetchTags();
-  }, []);
-
-  const fetchTags = async () => {
-    const { data } = await supabase.from("tags").select("*").order("category, name");
-    if (data) setTags(data);
-  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -60,42 +69,34 @@ const MenuItemForm = ({ menuId, restaurantId, onSuccess, onCancel }: MenuItemFor
     const file = e.target.files?.[0];
     if (file) {
       setCertificateFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCertificatePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
-    let imageUrl = null;
-    let certificateUrl = null;
-
-    // Check if halal tag is selected and certificate is required
-    const halalTag = tags.find(t => t.name.toLowerCase() === 'halal' && selectedTags.includes(t.id));
-    if (halalTag && !certificateFile) {
+    if (formData.dietary_halal && !existingCertificate && !certificateFile) {
       toast({
         title: "Certificate Required",
-        description: "Halal certificate is required when adding halal dishes",
+        description: "Halal certificate is required for halal dishes",
         variant: "destructive",
       });
-      setLoading(false);
       return;
     }
 
-    // Upload image if selected
-    if (imageFile) {
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+    setLoading(true);
 
-      const { error: uploadError } = await supabase.storage
+    let imageUrl = menuItem?.image_url || null;
+    if (imageFile) {
+      setUploadingImage(true);
+      const fileExt = imageFile.name.split('.').pop();
+      const filePath = `${restaurantId}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('menu-items')
         .upload(filePath, imageFile);
+
+      setUploadingImage(false);
 
       if (uploadError) {
         toast({
@@ -109,41 +110,54 @@ const MenuItemForm = ({ menuId, restaurantId, onSuccess, onCancel }: MenuItemFor
 
       const { data: { publicUrl } } = supabase.storage
         .from('menu-items')
-        .getPublicUrl(filePath);
+        .getPublicUrl(uploadData.path);
 
       imageUrl = publicUrl;
     }
 
-    // Upload certificate if provided
+    let certificateUrl = existingCertificate;
     if (certificateFile) {
-      const fileExt = certificateFile.name.split('.').pop();
-      const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
+      setUploadingCertificate(true);
+      const certificateExt = certificateFile.name.split('.').pop();
+      const certificatePath = `${restaurantId}/${Date.now()}_certificate.${certificateExt}`;
+      
+      const { error: certUploadError, data: certData } = await supabase.storage
         .from('certificates')
-        .upload(filePath, certificateFile);
+        .upload(certificatePath, certificateFile);
 
-      if (uploadError) {
+      setUploadingCertificate(false);
+
+      if (certUploadError) {
         toast({
           title: "Error",
-          description: "Failed to upload certificate: " + uploadError.message,
+          description: "Failed to upload certificate: " + certUploadError.message,
           variant: "destructive",
         });
         setLoading(false);
         return;
       }
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl: certPublicUrl } } = supabase.storage
         .from('certificates')
-        .getPublicUrl(filePath);
-
-      certificateUrl = publicUrl;
+        .getPublicUrl(certData.path);
+      
+      certificateUrl = certPublicUrl;
     }
 
-    const { data: menuItem, error: menuError } = await supabase
-      .from("menu_items")
-      .insert({
+    let error;
+    if (menuItem) {
+      ({ error } = await supabase
+        .from("menu_items")
+        .update({
+          name: formData.name,
+          description: formData.description,
+          price: parseFloat(formData.price),
+          image_url: imageUrl,
+          certificate_url: certificateUrl,
+        })
+        .eq("id", menuItem.id));
+    } else {
+      ({ error } = await supabase.from("menu_items").insert({
         menu_id: menuId,
         restaurant_id: restaurantId,
         name: formData.name,
@@ -151,61 +165,35 @@ const MenuItemForm = ({ menuId, restaurantId, onSuccess, onCancel }: MenuItemFor
         price: parseFloat(formData.price),
         image_url: imageUrl,
         certificate_url: certificateUrl,
-      })
-      .select()
-      .single();
+      }));
+    }
 
-    if (menuError || !menuItem) {
+    if (error) {
       toast({
         title: "Error",
-        description: menuError?.message || "Failed to create menu item",
+        description: error.message,
         variant: "destructive",
       });
       setLoading(false);
       return;
     }
 
-    if (selectedTags.length > 0) {
-      const tagInserts = selectedTags.map((tagId) => ({
-        menu_item_id: menuItem.id,
-        tag_id: tagId,
-      }));
-
-      const { error: tagError } = await supabase
-        .from("menu_item_tags")
-        .insert(tagInserts);
-
-      if (tagError) {
-        toast({
-          title: "Warning",
-          description: "Menu item created but tags failed to save",
-          variant: "destructive",
-        });
-      }
-    }
+    toast({
+      title: "Success",
+      description: menuItem ? "Dish updated successfully" : "Dish added successfully",
+    });
 
     setLoading(false);
     onSuccess();
-  };
-
-  const toggleTag = (tagId: string) => {
-    if (selectedTags.includes(tagId)) {
-      setSelectedTags(selectedTags.filter((id) => id !== tagId));
-    } else {
-      setSelectedTags([...selectedTags, tagId]);
-    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const dietaryTags = tags.filter((t) => t.category === "dietary");
-  const ingredientTags = tags.filter((t) => t.category === "ingredient");
-  const isHalalSelected = selectedTags.some(tagId => {
-    const tag = tags.find(t => t.id === tagId);
-    return tag?.name.toLowerCase() === 'halal';
-  });
+  const handleCheckboxChange = (field: string) => {
+    setFormData({ ...formData, [field]: !formData[field as keyof typeof formData] });
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -254,83 +242,97 @@ const MenuItemForm = ({ menuId, restaurantId, onSuccess, onCancel }: MenuItemFor
           type="file"
           accept="image/*"
           onChange={handleImageChange}
-          className="cursor-pointer"
         />
         {imagePreview && (
           <div className="mt-2">
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-full h-48 object-cover rounded-lg border"
+              className="w-32 h-32 object-cover rounded-lg"
             />
           </div>
         )}
       </div>
 
-      {isHalalSelected && (
+      <div>
+        <Label>Dietary Options</Label>
+        <div className="space-y-2 mt-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="dietary_halal"
+              checked={formData.dietary_halal}
+              onChange={() => handleCheckboxChange('dietary_halal')}
+              className="w-4 h-4"
+            />
+            <Label htmlFor="dietary_halal" className="cursor-pointer">Halal</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="dietary_vegetarian"
+              checked={formData.dietary_vegetarian}
+              onChange={() => handleCheckboxChange('dietary_vegetarian')}
+              className="w-4 h-4"
+            />
+            <Label htmlFor="dietary_vegetarian" className="cursor-pointer">Vegetarian</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="dietary_vegan"
+              checked={formData.dietary_vegan}
+              onChange={() => handleCheckboxChange('dietary_vegan')}
+              className="w-4 h-4"
+            />
+            <Label htmlFor="dietary_vegan" className="cursor-pointer">Vegan</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="dietary_gluten_free"
+              checked={formData.dietary_gluten_free}
+              onChange={() => handleCheckboxChange('dietary_gluten_free')}
+              className="w-4 h-4"
+            />
+            <Label htmlFor="dietary_gluten_free" className="cursor-pointer">Gluten Free</Label>
+          </div>
+        </div>
+      </div>
+
+      {formData.dietary_halal && (
         <div>
-          <Label htmlFor="certificate">Halal Certificate * (Required for Halal dishes)</Label>
+          <Label htmlFor="certificate">Halal Certificate {!existingCertificate && '*'}</Label>
           <Input
             id="certificate"
             name="certificate"
             type="file"
-            accept="image/*,application/pdf"
+            accept=".pdf,.jpg,.jpeg,.png"
             onChange={handleCertificateChange}
-            className="cursor-pointer"
+            required={!existingCertificate}
           />
-          {certificatePreview && (
-            <div className="mt-2">
-              {certificateFile?.type.includes('pdf') ? (
-                <p className="text-sm text-muted-foreground">PDF certificate selected</p>
-              ) : (
-                <img
-                  src={certificatePreview}
-                  alt="Certificate preview"
-                  className="w-full h-48 object-contain rounded-lg border"
-                />
-              )}
-            </div>
+          {existingCertificate && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Current certificate on file. Upload new file to replace.
+            </p>
+          )}
+          {!existingCertificate && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Upload halal certification (PDF or image)
+            </p>
           )}
         </div>
       )}
 
-      <div>
-        <Label>Dietary Tags *</Label>
-        <p className="text-xs text-muted-foreground mb-2">Select all that apply</p>
-        <div className="flex flex-wrap gap-2">
-          {dietaryTags.map((tag) => (
-            <Badge
-              key={tag.id}
-              variant={selectedTags.includes(tag.id) ? "default" : "outline"}
-              className="cursor-pointer"
-              onClick={() => toggleTag(tag.id)}
-            >
-              {tag.name}
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <Label>Ingredient Tags *</Label>
-        <p className="text-xs text-muted-foreground mb-2">Select all ingredients in this dish</p>
-        <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
-          {ingredientTags.map((tag) => (
-            <Badge
-              key={tag.id}
-              variant={selectedTags.includes(tag.id) ? "default" : "outline"}
-              className="cursor-pointer"
-              onClick={() => toggleTag(tag.id)}
-            >
-              {tag.name}
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex gap-2 pt-2">
-        <Button type="submit" disabled={loading || selectedTags.length === 0}>
-          {loading ? "Adding..." : "Add Menu Item"}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={loading || uploadingImage || uploadingCertificate}>
+          {loading 
+            ? (menuItem ? "Updating..." : "Adding...") 
+            : uploadingImage 
+              ? "Uploading Image..." 
+              : uploadingCertificate 
+                ? "Uploading Certificate..." 
+                : (menuItem ? "Update Dish" : "Add Dish")}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel

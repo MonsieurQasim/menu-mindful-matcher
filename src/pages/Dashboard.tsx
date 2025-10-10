@@ -16,6 +16,10 @@ interface Restaurant {
   description: string | null;
   address: string;
   city: string;
+  postal_code: string;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
 }
 
 const Dashboard = () => {
@@ -25,7 +29,9 @@ const Dashboard = () => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState<string | null>(null);
   const [showRestaurantForm, setShowRestaurantForm] = useState(false);
+  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
   const [showMenuForm, setShowMenuForm] = useState(false);
+  const [editingMenu, setEditingMenu] = useState<{ id: string; name: string } | null>(null);
   const [selectedMenu, setSelectedMenu] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -69,19 +75,39 @@ const Dashboard = () => {
 
   const handleRestaurantAdded = () => {
     setShowRestaurantForm(false);
+    setEditingRestaurant(null);
     fetchRestaurants();
+  };
+
+  const handleDeleteRestaurant = async (restaurantId: string) => {
+    if (!confirm("Are you sure you want to delete this restaurant? This will also delete all menus and dishes.")) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("restaurants")
+      .delete()
+      .eq("id", restaurantId);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
       title: "Success",
-      description: "Restaurant added successfully!",
+      description: "Restaurant deleted successfully",
     });
+    fetchRestaurants();
   };
 
   const handleMenuAdded = () => {
     setShowMenuForm(false);
-    toast({
-      title: "Success",
-      description: "Menu created successfully!",
-    });
+    setEditingMenu(null);
   };
 
   const handleSelectMenu = (menuId: string, menuName: string) => {
@@ -106,7 +132,10 @@ const Dashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
-          <Button onClick={() => setShowRestaurantForm(true)} className="w-full sm:w-auto">
+          <Button onClick={() => {
+            setShowRestaurantForm(true);
+            setEditingRestaurant(null);
+          }} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Add Restaurant
           </Button>
@@ -114,10 +143,16 @@ const Dashboard = () => {
 
         {showRestaurantForm && (
           <Card className="p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">Add New Restaurant</h2>
+            <h2 className="text-lg font-semibold mb-4">
+              {editingRestaurant ? "Edit Restaurant" : "Add New Restaurant"}
+            </h2>
             <RestaurantForm
+              restaurant={editingRestaurant || undefined}
               onSuccess={handleRestaurantAdded}
-              onCancel={() => setShowRestaurantForm(false)}
+              onCancel={() => {
+                setShowRestaurantForm(false);
+                setEditingRestaurant(null);
+              }}
             />
           </Card>
         )}
@@ -126,7 +161,7 @@ const Dashboard = () => {
           {restaurants.map((restaurant) => (
             <Card key={restaurant.id} className="p-6">
               <div className="flex items-start justify-between mb-4">
-                <div>
+                <div className="flex-1">
                   <h3 className="text-lg font-semibold flex items-center gap-2">
                     <Store className="h-5 w-5 text-primary" />
                     {restaurant.name}
@@ -136,26 +171,47 @@ const Dashboard = () => {
                     <p className="text-sm mt-2">{restaurant.description}</p>
                   )}
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setSelectedRestaurant(restaurant.id);
-                    setShowMenuForm(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Menu
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingRestaurant(restaurant);
+                      setShowRestaurantForm(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDeleteRestaurant(restaurant.id)}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSelectedRestaurant(restaurant.id);
+                      setShowMenuForm(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Menu
+                  </Button>
+                </div>
               </div>
 
               {showMenuForm && selectedRestaurant === restaurant.id ? (
                 <div className="mt-4 p-4 bg-muted rounded-lg">
-                  <h4 className="font-medium mb-3">Create Menu</h4>
+                  <h4 className="font-medium mb-3">{editingMenu ? "Edit Menu" : "Create Menu"}</h4>
                   <MenuForm
                     restaurantId={restaurant.id}
+                    menu={editingMenu || undefined}
                     onSuccess={handleMenuAdded}
                     onCancel={() => {
                       setShowMenuForm(false);
+                      setEditingMenu(null);
                       setSelectedRestaurant(null);
                     }}
                   />
@@ -177,6 +233,11 @@ const Dashboard = () => {
                     onSelectMenu={(menuId, menuName) => {
                       setSelectedRestaurant(restaurant.id);
                       handleSelectMenu(menuId, menuName);
+                    }}
+                    onEditMenu={(menu) => {
+                      setSelectedRestaurant(restaurant.id);
+                      setEditingMenu(menu);
+                      setShowMenuForm(true);
                     }}
                   />
                 </div>
